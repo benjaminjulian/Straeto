@@ -56,11 +56,9 @@ _THIS_PATH = os.path.dirname(__file__) or "."
 # you must apply to Straeto bs to obtain permission and get your own URL)
 _STATUS_URL_FILE = os.path.join(_THIS_PATH, "config", "status_url.txt")
 try:
-    _STATUS_URL = open(_STATUS_URL_FILE, "r").read().strip()
+    _STATUS_URL = open(_STATUS_URL_FILE, "r", encoding="utf-8").read().strip()
 except FileNotFoundError:
     _STATUS_URL = None
-# Real-time status refresh interval
-_REFRESH_INTERVAL = 60
 # Fallback location to fetch status info from, if not available via HTTP
 _STATUS_FILE = os.path.join(_THIS_PATH, "resources", "status.xml")
 _EARTH_RADIUS = 6371.0088  # Earth's radius in km
@@ -149,24 +147,6 @@ def locfmt(loc):
     return "({0:.6f},{1:.6f})".format(loc[0], loc[1])
 
 
-def round_to_hh_mm(ts, round_down=False):
-    """ Round a timestamp to a (h, m, s) tuple of the form hh:mm:00 """
-    h, m, s = ts.hour, ts.minute, ts.second
-    if round_down:
-        # Always round down
-        s = 0
-    elif s > 30 or (s == 30 and (m % 2)):
-        # Round up, or to an even number of minutes if seconds == 30
-        s = 0
-        m += 1
-        if m >= 60:
-            m -= 60
-            h += 1
-            if h >= 24:
-                h -= 24
-    return h, m, s
-
-
 class BusCalendar:
 
     """ This class contains a mapping from dates to the BusServices that
@@ -194,6 +174,7 @@ class BusCalendar:
         with open(
             os.path.join(_THIS_PATH, "resources", "calendar_dates.txt"),
             "r",
+            encoding="utf-8",
         ) as f:
             index = 0
             for line in f:
@@ -561,7 +542,7 @@ class BusRoute:
     def initialize():
         """ Read information about bus routes from the trips.txt file """
         BusRoute._all_routes = dict()
-        with open(os.path.join(_THIS_PATH, "resources", "trips.txt"), "r") as f:
+        with open(os.path.join(_THIS_PATH, "resources", "trips.txt"), "r", encoding="utf-8") as f:
             index = 0
             for line in f:
                 index += 1
@@ -729,7 +710,7 @@ class BusStop:
     @staticmethod
     def initialize():
         """ Read information about bus stops from the stops.txt file """
-        with open(os.path.join(_THIS_PATH, "resources", "stops.txt"), "r") as f:
+        with open(os.path.join(_THIS_PATH, "resources", "stops.txt"), "r", encoding="utf-8") as f:
             index = 0
             for line in f:
                 index += 1
@@ -819,7 +800,7 @@ class BusHalt:
             """ Convert a hh:mm:ss string to a (h, m, s) tuple """
             return (int(s[0:2]), int(s[3:5]), int(s[6:8]))
 
-        with open(os.path.join(_THIS_PATH, "resources", "stop_times.txt"), "r") as f:
+        with open(os.path.join(_THIS_PATH, "resources", "stop_times.txt"), "r", encoding="utf-8") as f:
             index = 0
             for line in f:
                 index += 1
@@ -962,9 +943,9 @@ class Bus:
         with Bus._lock:
             if Bus._timestamp is not None:
                 delta = datetime.utcnow() - Bus._timestamp
-                if delta.total_seconds() < _REFRESH_INTERVAL:
+                if delta.total_seconds() < 60:
                     # The state that we already have is less than
-                    # _REFRESH_INTERVAL seconds old: no need to refresh
+                    # a minute old: no need to refresh
                     return
             Bus._load_state()
 
@@ -1281,6 +1262,23 @@ class BusSchedule:
 
         if not result:
             return None
+
+        def round_to_hh_mm(ts, round_down=False):
+            """ Round a timestamp to a (h, m, s) tuple of the form hh:mm:00 """
+            h, m, s = ts.hour, ts.minute, ts.second
+            if round_down:
+                # Always round down
+                s = 0
+            elif s > 30 or (s == 30 and (m % 2)):
+                # Round up, or to an even number of minutes if seconds == 30
+                s = 0
+                m += 1
+                if m == 60:
+                    m = 0
+                    h += 1
+                    if h == 24:
+                        h = 0
+            return h, m, s
 
         # The result dict is compatible with BusSchedule.arrivals(),
         # and contains entries for directions where each entry has a list of hms tuples
